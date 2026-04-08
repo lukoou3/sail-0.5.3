@@ -115,12 +115,12 @@ async fn handle_command(
 
 // TODO: make sure that `server_side_session_id` is set properly
 
-/// rpc服务，看crates/sail-spark-connect/proto/spark/connect/base.proto： service SparkConnectService
+/// rpc服务，看crates/sail-spark-connect/proto/spark/connect/base.proto： service SparkConnectService 
 #[tonic::async_trait]
 impl SparkConnectService for SparkConnectServer {
     type ExecutePlanStream = ExecutePlanResponseStream;
 
-    /// 这个应该是接受客户端的请求，执行plan
+    /// 这个应该是接受客户端的请求，执行plan 
     async fn execute_plan(
         &self,
         request: Request<ExecutePlanRequest>,

@@ -56,7 +56,7 @@ pub fn parse_data_type(s: &str) -> SqlResult<DataType> {
     parse!(s, create_data_type_parser)
 }
 
-// 解析 sql expression
+// 解析 sql expression 
 pub fn parse_expression(s: &str) -> SqlResult<Expr> {
     parse!(s, create_expression_parser)
 }
@@ -65,7 +65,7 @@ pub fn parse_statements(s: &str) -> SqlResult<Vec<Statement>> {
     parse!(s, create_parser)
 }
 
-// 解析 sql statement。似乎是使用的chumsky库解析sql
+// 解析 sql statement。似乎是使用的chumsky库解析sql 
 pub fn parse_one_statement(s: &str) -> SqlResult<Statement> {
     let mut plan = parse_statements(s)?;
     match (plan.pop(), plan.is_empty()) {

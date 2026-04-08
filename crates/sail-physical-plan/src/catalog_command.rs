@@ -50,7 +50,7 @@ impl DisplayAs for CatalogCommandExec {
     }
 }
 
-// sql命令物理执行计划
+// sql命令物理执行计划 
 impl ExecutionPlan for CatalogCommandExec {
     fn name(&self) -> &'static str {
         Self::static_name()
@@ -78,7 +78,7 @@ impl ExecutionPlan for CatalogCommandExec {
         Ok(self)
     }
 
-    // sql命令执行
+    // sql命令执行 
     fn execute(
         &self,
         partition: usize,

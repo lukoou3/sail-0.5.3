@@ -384,11 +384,11 @@ impl CatalogCommand {
                     .await?;
                 display.bools().to_record_batch(vec![true])?
             }
-            // 注册udf
+            // 注册udf 
             CatalogCommand::RegisterFunction { udf } => {
                 let udf = manager.get_tracked_function(udf)?;
                 manager.register_function(udf)?;
-                // 返回空
+                // 返回空 
                 display.empty().to_record_batch(vec![])?
             }
             CatalogCommand::RegisterTableFunction { name, udtf } => {
