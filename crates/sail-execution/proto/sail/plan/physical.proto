@@ -1,0 +1,676 @@
+syntax = "proto3";
+
+package sail.plan;
+
+// All DataFusion data structures are represented as opaque bytes.
+// The encoding and decoding of these data structures are handled
+// in the code.
+// We do not explicitly use the DataFusion message types since there may be
+// breaking changes across DataFusion versions, and it is difficult to
+// keep the proto definitions in sync with the DataFusion proto crate.
+
+message ExtendedPhysicalPlanNode {
+  oneof NodeKind {
+    RangeExecNode range = 1;
+    ShowStringExecNode show_string = 2;
+    // We have removed shuffle read and write nodes.
+    StageInputExecNode stage_input = 3;
+    SystemTableExecNode system_table = 4;
+    SchemaPivotExecNode schema_pivot = 5;
+    MapPartitionsExecNode map_partitions = 6;
+    // TODO: This can be removed once it is supported by DataFusion.
+    MemoryExecNode memory = 7;
+    ValuesExecNode values = 8;
+    NdJsonExecNode nd_json = 9;
+    ArrowExecNode arrow = 10;
+    WorkTableExecNode work_table = 11;
+    RecursiveQueryExecNode recursive_query = 12;
+    SortMergeJoinExecNode sort_merge_join = 13;
+    PartialSortExecNode partial_sort = 14;
+    TextExecNode text = 15;
+    DeltaWriterExecNode delta_writer = 16;
+    DeltaCommitExecNode delta_commit = 17;
+    DeltaScanByAddsExecNode delta_scan_by_adds = 18;
+    DeltaDiscoveryExecNode delta_discovery = 19;
+    DeltaRemoveActionsExecNode delta_remove_actions = 20;
+    DeltaLogReplayExecNode delta_log_replay = 21;
+    DeltaMetadataStatsExecNode delta_metadata_stats = 22;
+    AvroExecNode avro = 23;
+    ConsoleSinkExecNode console_sink = 24;
+    SocketSourceExecNode socket_source = 25;
+    RateSourceExecNode rate_source = 26;
+    TextSinkExecNode text_sink = 27;
+    BinarySourceExecNode binary_source = 28;
+    StreamCollectorExecNode stream_collector = 29;
+    StreamLimitExecNode stream_limit = 30;
+    StreamFilterExecNode stream_filter = 31;
+    StreamSourceAdapterExecNode stream_source_adapter = 32;
+    IcebergWriterExecNode iceberg_writer = 33;
+    IcebergCommitExecNode iceberg_commit = 34;
+    MergeCardinalityCheckExecNode merge_cardinality_check = 35;
+    PythonDataSourceExecNode python_data_source = 36;
+    MonotonicIdExecNode monotonic_id = 37;
+    PythonDataSourceWriteExecNode python_data_source_write = 38;
+    PythonDataSourceWriteCommitExecNode python_data_source_write_commit = 39;
+    CatalogCommandExecNode catalog_command = 40;
+    BarrierExecNode barrier = 41;
+  }
+}
+
+message ExtendedPhysicalExprNode {
+  oneof ExprKind {
+    DeltaCastColumnExprNode delta_cast = 1;
+  }
+}
+
+message DeltaCastColumnExprNode {
+  bytes input_schema = 1;
+  bytes target_schema = 2;
+}
+
+message ExtendedScalarUdf {
+  oneof UdfKind {
+    StandardUdf standard = 1;
+    PySparkUdf py_spark = 2;
+    PySparkCoGroupMapUdf py_spark_co_group_map = 3;
+    DropStructFieldUdf drop_struct_field = 4;
+    ExplodeUdf explode = 5;
+    SparkUnixTimestampUdf spark_unix_timestamp = 6;
+    StructFunctionUdf struct_function = 7;
+    UpdateStructFieldUdf update_struct_field = 8;
+    TimestampNowUdf timestamp_now = 9;
+    SparkTimestampUdf spark_timestamp = 10;
+    SparkDateUdf spark_date = 11;
+    SparkFromCsvUdf spark_from_csv = 12;
+  }
+}
+
+message ExtendedStreamUdf {
+  oneof StreamUdfKind {
+    PySparkMapIterUdf py_spark_map_iter = 1;
+    PySparkUdtf py_spark_udtf = 2;
+  }
+}
+
+message ExtendedAggregateUdf {
+  oneof UdafKind {
+    StandardUdaf standard = 1;
+    PySparkGroupAggUdaf py_spark_group_agg = 2;
+    PySparkGroupMapUdaf py_spark_group_map = 3;
+    PySparkBatchCollectorUdaf py_spark_batch_collector = 4;
+  }
+}
+
+message StandardUdf {}
+
+message PySparkUdf {
+  PySparkUdfKind kind = 1;
+  string name = 2;
+  bytes payload = 3;
+  bool deterministic = 4;
+  repeated bytes input_types = 5;
+  bytes output_type = 6;
+  PySparkUdfConfig config = 7;
+}
+
+message PySparkCoGroupMapUdf {
+  string name = 1;
+  bytes payload = 2;
+  bool deterministic = 3;
+  repeated bytes left_types = 4;
+  repeated string left_names = 5;
+  repeated bytes right_types = 6;
+  repeated string right_names = 7;
+  bytes output_type = 8;
+  bool is_pandas = 9;
+  PySparkUdfConfig config = 10;
+}
+
+message DropStructFieldUdf {
+  repeated string field_names = 1;
+}
+
+message ExplodeUdf {
+  string name = 1;
+}
+
+message SparkUnixTimestampUdf {
+  string timezone = 1;
+}
+
+message StructFunctionUdf {
+  repeated string field_names = 1;
+}
+
+message UpdateStructFieldUdf {
+  repeated string field_names = 1;
+}
+
+message TimestampNowUdf {
+  string timezone = 1;
+  string time_unit = 2;
+}
+
+message SparkTimestampUdf {
+  optional string timezone = 1;
+  bool is_try = 2;
+}
+
+message SparkDateUdf {
+  bool is_try = 1;
+}
+
+message SparkFromCsvUdf {
+  string session_timezone = 1;
+}
+
+message StandardUdaf {}
+
+message PySparkGroupAggUdaf {
+  string name = 1;
+  bytes payload = 2;
+  bool deterministic = 3;
+  repeated string input_names = 4;
+  repeated bytes input_types = 5;
+  bytes output_type = 6;
+  PySparkUdfConfig config = 7;
+}
+
+message PySparkGroupMapUdaf {
+  string name = 1;
+  bytes payload = 2;
+  bool deterministic = 3;
+  repeated string input_names = 4;
+  repeated bytes input_types = 5;
+  bytes output_type = 6;
+  bool is_pandas = 7;
+  PySparkUdfConfig config = 8;
+}
+
+message PySparkBatchCollectorUdaf {
+  repeated bytes input_types = 1;
+  repeated string input_names = 2;
+}
+
+message PySparkMapIterUdf {
+  PySparkMapIterKind kind = 1;
+  string name = 2;
+  bytes payload = 3;
+  repeated string input_names = 4;
+  bytes output_schema = 5;
+  PySparkUdfConfig config = 6;
+}
+
+message PySparkUdtf {
+  PySparkUdtfKind kind = 1;
+  string name = 2;
+  bytes payload = 3;
+  repeated string input_names = 4;
+  repeated bytes input_types = 5;
+  uint64 passthrough_columns = 6;
+  bytes function_return_type = 7;
+  repeated string function_output_names = 8;
+  bool deterministic = 9;
+  PySparkUdfConfig config = 10;
+}
+
+enum PySparkUdfKind {
+  PY_SPARK_UDF_KIND_BATCH = 0;
+  PY_SPARK_UDF_KIND_ARROW_BATCH = 1;
+  PY_SPARK_UDF_KIND_SCALAR_PANDAS = 2;
+  PY_SPARK_UDF_KIND_SCALAR_PANDAS_ITER = 3;
+}
+
+enum PySparkMapIterKind {
+  PY_SPARK_MAP_ITER_KIND_PANDAS = 0;
+  PY_SPARK_MAP_ITER_KIND_ARROW = 1;
+}
+
+enum PySparkUdtfKind {
+  PY_SPARK_UDTF_KIND_TABLE = 0;
+  PY_SPARK_UDTF_KIND_ARROW_TABLE = 1;
+}
+
+message PySparkUdfConfig {
+  string session_timezone = 1;
+  optional string pandas_window_bound_types = 2;
+  bool pandas_grouped_map_assign_columns_by_name = 3;
+  bool pandas_convert_to_arrow_array_safely = 4;
+  uint64 arrow_max_records_per_batch = 5;
+}
+
+message EquivalenceProperties {
+  EquivalenceGroup eq_group = 1;
+  repeated ConstantExpr constants = 2;
+  repeated LexOrdering orderings = 3;
+  repeated Constraint constraints = 4;
+  bytes schema = 5;
+}
+
+message EquivalenceGroup {
+  repeated EquivalenceClass classes = 1;
+}
+
+message EquivalenceClass {
+  repeated bytes exprs = 1;
+}
+
+message ConstantExpr {
+  bytes expr = 1;
+  ConstantAcrossPartitions across_partitions = 2;
+}
+
+message ConstantAcrossPartitions {
+  oneof kind {
+    UniformConstant uniform = 1;
+    HeterogeneousConstant heterogeneous = 2;
+  }
+}
+
+message UniformConstant {
+  optional bytes value = 1;
+}
+
+message HeterogeneousConstant {
+}
+
+message Constraint {
+  oneof kind {
+    PrimaryKeyConstraint primary_key = 1;
+    UniqueConstraint unique = 2;
+  }
+}
+
+message PrimaryKeyConstraint {
+  repeated uint64 indices = 1;
+}
+
+message UniqueConstraint {
+  repeated uint64 indices = 1;
+}
+
+message RangeExecNode {
+  int64 start = 1;
+  int64 end = 2;
+  int64 step = 3;
+  uint64 num_partitions = 4;
+  bytes schema = 5;
+  repeated uint64 projection = 6;
+}
+
+message ShowStringExecNode {
+  bytes input = 1;
+  repeated string names = 2;
+  uint64 limit = 3;
+  ShowStringStyle style = 4;
+  uint64 truncate = 5;
+  bytes schema = 6;
+}
+
+enum ShowStringStyle {
+  SHOW_STRING_STYLE_DEFAULT = 0;
+  SHOW_STRING_STYLE_VERTICAL = 1;
+  SHOW_STRING_STYLE_HTML = 2;
+}
+
+message StageInputExecNode {
+  uint64 input = 1;
+  EquivalenceProperties eq_properties = 2;
+  bytes partitioning = 3;
+  bool bounded = 4;
+}
+
+message SystemTableExecNode {
+  string table = 1;
+  optional PhysicalProjection projection = 2;
+  repeated bytes filters = 3;
+  optional uint64 fetch = 4;
+}
+
+message SchemaPivotExecNode {
+  bytes input = 1;
+  repeated string names = 2;
+  bytes schema = 3;
+}
+
+message MapPartitionsExecNode {
+  bytes input = 1;
+  ExtendedStreamUdf udf = 2;
+  bytes schema = 3;
+}
+
+message LexOrdering {
+  repeated bytes values = 1;
+}
+
+message PhysicalSortExprNodeCollection {
+  repeated bytes physical_sort_expr_nodes = 1;
+}
+
+message MemoryExecNode {
+  repeated bytes partitions = 1;
+  bytes schema = 2;
+  optional PhysicalProjection projection = 3;
+  bool show_sizes = 4;
+  repeated LexOrdering sort_information = 5;
+  optional uint64 limit = 6;
+}
+
+message ValuesExecNode {
+  bytes data = 1;
+  bytes schema = 2;
+}
+
+message NdJsonExecNode {
+  bytes base_config = 1;
+  CompressionTypeVariant file_compression_type = 2;
+}
+
+message ArrowExecNode {
+  bytes base_config = 1;
+}
+
+message TextExecNode {
+  bytes base_config = 1;
+  CompressionTypeVariant file_compression_type = 2;
+  bool whole_text = 3;
+  optional bytes line_sep = 4;
+}
+
+message BinarySourceExecNode {
+  bytes base_config = 1;
+  optional string path_glob_filter = 2;
+}
+
+message AvroExecNode {
+  bytes base_config = 1;
+}
+
+message WorkTableExecNode {
+  string name = 1;
+  bytes schema = 2;
+}
+
+message RecursiveQueryExecNode {
+  string name = 1;
+  bytes static_term = 2;
+  bytes recursive_term = 3;
+  bool is_distinct = 4;
+}
+
+message SortMergeJoinExecNode {
+  bytes left = 1;
+  bytes right = 2;
+  repeated JoinOn on = 3;
+  optional JoinFilter filter = 4;
+  string join_type = 5;
+  repeated SortOptions sort_options = 6;
+  bool null_equals_null = 7;
+}
+
+message PartialSortExecNode {
+  LexOrdering expr = 1;
+  bytes input = 2;
+  uint64 common_prefix_length = 3;
+}
+
+message AppendMode {}
+message OverwriteMode {}
+message OverwriteIfMode {
+  optional string source = 1;
+}
+message ErrorIfExistsMode {}
+message IgnoreIfExistsMode {}
+message OverwritePartitionsMode {}
+
+message PhysicalSinkMode {
+  oneof mode {
+    AppendMode append = 1;
+    OverwriteMode overwrite = 2;
+    OverwriteIfMode overwrite_if = 3;
+    ErrorIfExistsMode error_if_exists = 4;
+    IgnoreIfExistsMode ignore_if_exists = 5;
+    OverwritePartitionsMode overwrite_partitions = 6;
+  }
+}
+
+message DeltaWriterExecNode {
+  bytes input = 1;
+  string table_url = 2;
+  string options = 3;
+  bytes sink_schema = 4;
+  repeated string partition_columns = 5;
+  bool table_exists = 6;
+  PhysicalSinkMode sink_mode = 7;
+  optional string operation_override_json = 8;
+  string metadata_configuration = 9;
+}
+
+message DeltaCommitExecNode {
+  bytes input = 1;
+  string table_url = 2;
+  repeated string partition_columns = 3;
+  bool table_exists = 4;
+  bytes sink_schema = 5;
+  PhysicalSinkMode sink_mode = 6;
+}
+
+message DeltaScanByAddsExecNode {
+  bytes input = 1;
+  string table_url = 2;
+  bytes table_schema = 3;
+  optional bytes output_schema = 4;
+  string scan_config_json = 5;
+  optional PhysicalProjection projection = 6;
+  optional uint64 limit = 7;
+  optional bytes pushdown_filter = 8;
+  int64 version = 9;
+  optional bytes statistics = 10;
+  // TODO: Consider snapshot hints (partition columns, kernel schema) to avoid worker log reads.
+}
+
+message DeltaDiscoveryExecNode {
+  string table_url = 1;
+  optional bytes predicate = 2;
+  optional bytes table_schema = 3;
+  int64 version = 4;
+  optional bytes input = 5;
+  repeated string input_partition_columns = 6;
+  bool input_partition_scan = 7;
+}
+
+message DeltaMetadataStatsExecNode {
+  bytes input = 1;
+  bytes stats_schema = 2;
+}
+
+message DeltaRemoveActionsExecNode {
+  bytes input = 1;
+}
+
+message ConsoleSinkExecNode {
+  bytes input = 1;
+}
+
+message SocketSourceExecNode {
+  string host = 1;
+  uint32 port = 2;
+  uint64 max_batch_size = 3;
+  uint64 timeout_sec = 4;
+  bytes schema = 5;
+  repeated uint64 projection = 6;
+}
+
+message RateSourceExecNode {
+  uint64 rows_per_second = 1;
+  uint64 num_partitions = 2;
+  bytes schema = 3;
+  repeated uint64 projection = 4;
+}
+
+message TextSinkExecNode {
+  bytes input = 1;
+  bytes base_config = 2;
+  bytes schema = 3;
+  bytes line_sep = 4;
+  CompressionTypeVariant compression_type_variant = 5;
+  optional PhysicalSortExprNodeCollection sort_order = 6;
+}
+
+message StreamCollectorExecNode {
+  bytes input = 1;
+}
+
+message StreamLimitExecNode {
+  bytes input = 1;
+  uint64 skip = 2;
+  optional uint64 fetch = 3;
+}
+
+message StreamFilterExecNode {
+  bytes input = 1;
+  bytes predicate = 2;
+}
+
+message StreamSourceAdapterExecNode {
+  bytes input = 1;
+}
+
+message MergeCardinalityCheckExecNode {
+  bytes input = 1;
+  string target_row_id_col = 2;
+  string target_present_col = 3;
+  string source_present_col = 4;
+}
+
+message MonotonicIdExecNode {
+  bytes input = 1;
+  string column_name = 2;
+  bytes schema = 3;
+}
+
+message JoinOn {
+  bytes left = 1;
+  bytes right = 2;
+}
+
+message JoinFilter{
+  bytes expression = 1;
+  repeated ColumnIndex column_indices = 2;
+  bytes schema = 3;
+}
+
+message ColumnIndex{
+  uint32 index = 1;
+  string side = 2;
+}
+
+message SortOptions {
+  bool descending = 1;
+  bool nulls_first = 2;
+}
+
+message PhysicalProjection {
+  repeated uint64 columns = 1;
+}
+
+enum CompressionTypeVariant {
+  COMPRESSION_TYPE_VARIANT_GZIP = 0;
+  COMPRESSION_TYPE_VARIANT_BZIP2 = 1;
+  COMPRESSION_TYPE_VARIANT_XZ = 2;
+  COMPRESSION_TYPE_VARIANT_ZSTD = 3;
+  COMPRESSION_TYPE_VARIANT_UNCOMPRESSED = 4;
+}
+
+enum PartitionTransformKind {
+  PARTITION_TRANSFORM_KIND_UNSPECIFIED = 0;
+  PARTITION_TRANSFORM_KIND_IDENTITY = 1;
+  PARTITION_TRANSFORM_KIND_YEAR = 2;
+  PARTITION_TRANSFORM_KIND_MONTH = 3;
+  PARTITION_TRANSFORM_KIND_DAY = 4;
+  PARTITION_TRANSFORM_KIND_HOUR = 5;
+  PARTITION_TRANSFORM_KIND_BUCKET = 6;
+  PARTITION_TRANSFORM_KIND_TRUNCATE = 7;
+}
+
+message CatalogPartitionFieldNode {
+  string column = 1;
+  PartitionTransformKind transform_kind = 2;
+  uint32 transform_value = 3;
+}
+
+message IcebergWriterExecNode {
+  bytes input = 1;
+  string table_url = 2;
+  repeated CatalogPartitionFieldNode partition_columns = 3;
+  PhysicalSinkMode sink_mode = 4;
+  bool table_exists = 5;
+  string options = 6;
+}
+
+message IcebergCommitExecNode {
+  bytes input = 1;
+  string table_url = 2;
+}
+
+message DeltaLogReplayExecNode {
+  // Legacy single-input encoding for sort replay mode.
+  bytes input = 1;
+  string table_url = 2;
+  int64 version = 3;
+  repeated string partition_columns = 4;
+  repeated string checkpoint_files = 5;
+  repeated string commit_files = 6;
+  // Preferred encoding for hash replay mode.
+  optional bytes checkpoint_input = 7;
+  optional bytes commits_input = 8;
+}
+
+message PythonDataSourceInputPartition {
+  uint64 partition_id = 1;
+  bytes data = 2;
+}
+
+message PythonDataSourceExecNode {
+  // Pickled Python DataSourceReader instance (with filters already applied)
+  bytes pickled_reader = 1;
+  bytes schema = 2;
+  repeated PythonDataSourceInputPartition partitions = 3;
+}
+
+message PythonDataSourceWriteExecNode {
+  // Pickled Python DataSourceWriter instance obtained from
+  // DataSource.writer(schema, overwrite), ready for write(), commit(),
+  // and abort() calls (stateless boundary matches write_exec.rs).
+  bytes pickled_writer = 1;
+  // Schema of the data being written
+  bytes schema = 2;
+  // Whether writer is DataSourceArrowWriter (true) or DataSourceWriter (false)
+  bool is_arrow = 3;
+  // Input plan that generates data to write
+  bytes input = 4;
+}
+
+message PythonDataSourceWriteCommitExecNode {
+  // Pickled Python DataSourceWriter instance used for commit()/abort().
+  bytes pickled_writer = 1;
+  // Number of partition-level write results expected from the write stage.
+  uint64 expected_partitions = 2;
+  // Input plan that yields per-partition write results.
+  bytes input = 3;
+}
+
+message CatalogCommandExecNode {
+  // Schema for the command output.
+  bytes schema = 1;
+  // JSON-encoded CatalogCommand.
+  string command = 2;
+}
+
+message BarrierExecNode {
+  // Precondition plans to be exhausted before the main plan starts.
+  // Each element is a DataFusion PhysicalPlanNode encoded as bytes.
+  repeated bytes preconditions = 1;
+  // The main plan to execute after all preconditions are exhausted.
+  bytes plan = 2;
+}

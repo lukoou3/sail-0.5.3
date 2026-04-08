@@ -1,0 +1,449 @@
+use datafusion::arrow::array::RecordBatch;
+use datafusion::arrow::datatypes::SchemaRef;
+use sail_common_datafusion::array::serde::ArrowSerializer;
+use sail_common_datafusion::extension::SessionExtensionAccessor;
+use sail_common_datafusion::session::plan::PlanService;
+use serde::{Deserialize, Serialize};
+
+use crate::error::{CatalogError, CatalogResult};
+use crate::manager::tracker::{CatalogFunctionId, CatalogLogicalPlanId};
+use crate::manager::CatalogManager;
+use crate::provider::{
+    CreateDatabaseOptions, CreateTableOptions, CreateTemporaryViewOptions, CreateViewOptions,
+    DropDatabaseOptions, DropTableOptions, DropTemporaryViewOptions, DropViewOptions,
+};
+use crate::utils::quote_namespace_if_needed;
+
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Hash, Serialize, Deserialize)]
+pub enum CatalogCommand {
+    CurrentCatalog,
+    SetCurrentCatalog {
+        catalog: String,
+    },
+    ListCatalogs {
+        pattern: Option<String>,
+    },
+    CurrentDatabase,
+    SetCurrentDatabase {
+        database: Vec<String>,
+    },
+    CreateDatabase {
+        database: Vec<String>,
+        options: CreateDatabaseOptions,
+    },
+    DatabaseExists {
+        database: Vec<String>,
+    },
+    GetDatabase {
+        database: Vec<String>,
+    },
+    ListDatabases {
+        qualifier: Vec<String>,
+        pattern: Option<String>,
+    },
+    DropDatabase {
+        database: Vec<String>,
+        options: DropDatabaseOptions,
+    },
+    CreateTable {
+        table: Vec<String>,
+        options: CreateTableOptions,
+    },
+    TableExists {
+        table: Vec<String>,
+    },
+    GetTable {
+        table: Vec<String>,
+    },
+    ListTables {
+        database: Vec<String>,
+        pattern: Option<String>,
+    },
+    ListViews {
+        database: Vec<String>,
+        pattern: Option<String>,
+    },
+    DropTable {
+        table: Vec<String>,
+        options: DropTableOptions,
+    },
+    ListColumns {
+        table: Vec<String>,
+    },
+    FunctionExists {
+        function: Vec<String>,
+    },
+    GetFunction {
+        function: Vec<String>,
+    },
+    ListFunctions {
+        database: Vec<String>,
+        pattern: Option<String>,
+    },
+    DropFunction {
+        function: Vec<String>,
+        if_exists: bool,
+        is_temporary: bool,
+    },
+    RegisterFunction {
+        udf: CatalogFunctionId,
+    },
+    RegisterTableFunction {
+        name: String,
+        // We have to be explicit about the UDTF types we support.
+        // We cannot use `Arc<dyn TableFunctionImpl>` because it does not implement `Eq` and `Hash`.
+        udtf: CatalogTableFunction,
+    },
+    DropTemporaryView {
+        view: String,
+        is_global: bool,
+        options: DropTemporaryViewOptions,
+    },
+    DropView {
+        view: Vec<String>,
+        options: DropViewOptions,
+    },
+    CreateTemporaryView {
+        view: String,
+        is_global: bool,
+        options: CreateTemporaryViewOptions<CatalogLogicalPlanId>,
+    },
+    CreateView {
+        view: Vec<String>,
+        options: CreateViewOptions,
+    },
+    DescribeTable {
+        table: Vec<String>,
+        extended: bool,
+    },
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Serialize, Deserialize)]
+pub enum CatalogTableFunction {
+    // We do not support any kind of table functions yet.
+    // PySpark UDTF is registered as a scalar UDF.
+}
+
+impl CatalogCommand {
+    pub fn name(&self) -> &str {
+        match self {
+            CatalogCommand::CurrentCatalog => "CurrentCatalog",
+            CatalogCommand::SetCurrentCatalog { .. } => "SetCurrentCatalog",
+            CatalogCommand::ListCatalogs { .. } => "ListCatalogs",
+            CatalogCommand::CurrentDatabase => "CurrentDatabase",
+            CatalogCommand::SetCurrentDatabase { .. } => "SetCurrentDatabase",
+            CatalogCommand::CreateDatabase { .. } => "CreateDatabase",
+            CatalogCommand::DatabaseExists { .. } => "DatabaseExists",
+            CatalogCommand::GetDatabase { .. } => "GetDatabase",
+            CatalogCommand::ListDatabases { .. } => "ListDatabases",
+            CatalogCommand::DropDatabase { .. } => "DropDatabase",
+            CatalogCommand::CreateTable { .. } => "CreateTable",
+            CatalogCommand::TableExists { .. } => "TableExists",
+            CatalogCommand::GetTable { .. } => "GetTable",
+            CatalogCommand::ListTables { .. } => "ListTables",
+            CatalogCommand::ListViews { .. } => "ListViews",
+            CatalogCommand::DropTable { .. } => "DropTable",
+            CatalogCommand::ListColumns { .. } => "ListColumns",
+            CatalogCommand::FunctionExists { .. } => "FunctionExists",
+            CatalogCommand::GetFunction { .. } => "GetFunction",
+            CatalogCommand::ListFunctions { .. } => "ListFunctions",
+            CatalogCommand::RegisterFunction { .. } => "RegisterFunction",
+            CatalogCommand::RegisterTableFunction { .. } => "RegisterTableFunction",
+            CatalogCommand::DropFunction { .. } => "DropFunction",
+            CatalogCommand::DropTemporaryView { .. } => "DropTemporaryView",
+            CatalogCommand::DropView { .. } => "DropView",
+            CatalogCommand::CreateTemporaryView { .. } => "CreateTemporaryView",
+            CatalogCommand::CreateView { .. } => "CreateView",
+            CatalogCommand::DescribeTable { .. } => "DescribeTable",
+        }
+    }
+
+    pub fn schema<C: SessionExtensionAccessor>(&self, ctx: &C) -> CatalogResult<SchemaRef> {
+        let service = ctx.extension::<PlanService>()?;
+        let display = service.catalog_display();
+        let schema = match self {
+            CatalogCommand::ListCatalogs { .. } => display.catalogs().schema()?,
+            CatalogCommand::GetDatabase { .. } | CatalogCommand::ListDatabases { .. } => {
+                display.databases().schema()?
+            }
+            CatalogCommand::GetTable { .. }
+            | CatalogCommand::ListTables { .. }
+            | CatalogCommand::ListViews { .. } => display.tables().schema()?,
+            CatalogCommand::ListColumns { .. } => display.table_columns().schema()?,
+            CatalogCommand::GetFunction { .. } | CatalogCommand::ListFunctions { .. } => {
+                display.functions().schema()?
+            }
+            CatalogCommand::SetCurrentCatalog { .. }
+            | CatalogCommand::SetCurrentDatabase { .. }
+            | CatalogCommand::RegisterFunction { .. }
+            | CatalogCommand::RegisterTableFunction { .. } => display.empty().schema()?,
+            CatalogCommand::CurrentCatalog | CatalogCommand::CurrentDatabase => {
+                display.strings().schema()?
+            }
+            CatalogCommand::DescribeTable { .. } => {
+                ArrowSerializer::default().schema::<DescribeTableRow>()?
+            }
+            CatalogCommand::DatabaseExists { .. }
+            | CatalogCommand::TableExists { .. }
+            | CatalogCommand::FunctionExists { .. }
+            | CatalogCommand::CreateDatabase { .. }
+            | CatalogCommand::CreateTable { .. }
+            | CatalogCommand::CreateTemporaryView { .. }
+            | CatalogCommand::CreateView { .. }
+            | CatalogCommand::DropDatabase { .. }
+            | CatalogCommand::DropTable { .. }
+            | CatalogCommand::DropFunction { .. }
+            | CatalogCommand::DropTemporaryView { .. }
+            | CatalogCommand::DropView { .. } => display.bools().schema()?,
+        };
+        Ok(schema)
+    }
+
+    pub async fn execute<C: SessionExtensionAccessor>(
+        self,
+        ctx: &C,
+        manager: &CatalogManager,
+    ) -> CatalogResult<RecordBatch> {
+        // TODO: make sure we return the same schema as Spark for each command
+        let service = ctx.extension::<PlanService>()?;
+        let display = service.catalog_display();
+        let batch = match self {
+            CatalogCommand::CurrentCatalog => {
+                let value = manager.default_catalog()?;
+                display.strings().to_record_batch(vec![value.to_string()])?
+            }
+            CatalogCommand::SetCurrentCatalog { catalog } => {
+                manager.set_default_catalog(catalog)?;
+                display.empty().to_record_batch(vec![])?
+            }
+            CatalogCommand::ListCatalogs { pattern } => {
+                let rows = manager
+                    .list_catalogs(pattern.as_deref())?
+                    .into_iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<_>>();
+                display.catalogs().to_record_batch(rows)?
+            }
+            CatalogCommand::CurrentDatabase => {
+                let value = manager.default_database()?;
+                let value = quote_namespace_if_needed(&value);
+                display.strings().to_record_batch(vec![value])?
+            }
+            CatalogCommand::SetCurrentDatabase { database } => {
+                manager.set_default_database(database).await?;
+                display.empty().to_record_batch(vec![])?
+            }
+            CatalogCommand::CreateDatabase { database, options } => {
+                manager.create_database(&database, options).await?;
+                display.bools().to_record_batch(vec![true])?
+            }
+            CatalogCommand::DatabaseExists { database } => {
+                let value = match manager.get_database(&database).await {
+                    Ok(_) => true,
+                    Err(CatalogError::NotFound(_, _)) => false,
+                    Err(e) => return Err(e),
+                };
+                display.bools().to_record_batch(vec![value])?
+            }
+            CatalogCommand::GetDatabase { database } => {
+                let rows = match manager.get_database(&database).await {
+                    Ok(x) => vec![x],
+                    Err(CatalogError::NotFound(_, _)) => vec![],
+                    Err(e) => return Err(e),
+                };
+                display.databases().to_record_batch(rows)?
+            }
+            CatalogCommand::ListDatabases { qualifier, pattern } => {
+                let rows = match manager.list_databases(&qualifier, pattern.as_deref()).await {
+                    Ok(rows) => rows,
+                    Err(CatalogError::NotFound(_, _)) => vec![],
+                    Err(e) => return Err(e),
+                };
+                display.databases().to_record_batch(rows)?
+            }
+            CatalogCommand::DropDatabase { database, options } => {
+                manager.drop_database(&database, options).await?;
+                display.bools().to_record_batch(vec![true])?
+            }
+            CatalogCommand::CreateTable { table, options } => {
+                manager.create_table(&table, options).await?;
+                display.bools().to_record_batch(vec![true])?
+            }
+            CatalogCommand::TableExists { table } => {
+                let value = match manager.get_table_or_view(&table).await {
+                    Ok(_) => true,
+                    Err(CatalogError::NotFound(_, _)) => false,
+                    Err(e) => return Err(e),
+                };
+                display.bools().to_record_batch(vec![value])?
+            }
+            CatalogCommand::GetTable { table } => {
+                // We are supposed to return an error if the table or view does not exist.
+                let table = manager.get_table_or_view(&table).await?;
+                display.tables().to_record_batch(vec![table])?
+            }
+            CatalogCommand::ListTables { database, pattern } => {
+                let rows = manager
+                    .list_tables_and_temporary_views(&database, pattern.as_deref())
+                    .await?;
+                display.tables().to_record_batch(rows)?
+            }
+            CatalogCommand::ListViews { database, pattern } => {
+                let rows = manager
+                    .list_views_and_temporary_views(&database, pattern.as_deref())
+                    .await?;
+                display.tables().to_record_batch(rows)?
+            }
+            CatalogCommand::DropTable { table, options } => {
+                manager.drop_table(&table, options).await?;
+                display.bools().to_record_batch(vec![true])?
+            }
+            CatalogCommand::ListColumns { table } => {
+                let rows = manager.get_table_or_view(&table).await?.kind.columns();
+                display.table_columns().to_record_batch(rows)?
+            }
+            CatalogCommand::DescribeTable { table, extended } => {
+                let table_status = manager.get_table_or_view(&table).await?;
+                let formatter = service.plan_formatter();
+                let serializer = ArrowSerializer::default();
+
+                let mut rows: Vec<DescribeTableRow> = Vec::new();
+
+                for col in &table_status.kind.columns() {
+                    rows.push(DescribeTableRow {
+                        col_name: col.name.clone(),
+                        data_type: formatter
+                            .data_type_to_simple_string(&col.data_type)
+                            .unwrap_or_else(|_| "invalid".to_string()),
+                        comment: col.comment.clone(),
+                    });
+                }
+
+                if extended {
+                    let partition_cols = table_status.kind.partition_columns();
+                    if !partition_cols.is_empty() {
+                        rows.push(DescribeTableRow {
+                            col_name: "# Partition Information".to_string(),
+                            data_type: String::new(),
+                            comment: None,
+                        });
+                        rows.push(DescribeTableRow {
+                            col_name: "# col_name".to_string(),
+                            data_type: "data_type".to_string(),
+                            comment: Some("comment".to_string()),
+                        });
+                        for col in &partition_cols {
+                            rows.push(DescribeTableRow {
+                                col_name: col.name.clone(),
+                                data_type: formatter
+                                    .data_type_to_simple_string(&col.data_type)
+                                    .unwrap_or_else(|_| "invalid".to_string()),
+                                comment: col.comment.clone(),
+                            });
+                        }
+                    }
+
+                    rows.push(DescribeTableRow {
+                        col_name: String::new(),
+                        data_type: String::new(),
+                        comment: None,
+                    });
+                    rows.push(DescribeTableRow {
+                        col_name: "# Detailed Table Information".to_string(),
+                        data_type: String::new(),
+                        comment: None,
+                    });
+
+                    for (key, value) in table_status.describe_extended_metadata() {
+                        rows.push(DescribeTableRow {
+                            col_name: key,
+                            data_type: value,
+                            comment: None,
+                        });
+                    }
+                }
+
+                serializer.build_record_batch(&rows)?
+            }
+            CatalogCommand::FunctionExists { .. } => {
+                return Err(CatalogError::NotSupported("function exists".to_string()));
+            }
+            CatalogCommand::GetFunction { .. } => {
+                return Err(CatalogError::NotSupported("get function".to_string()));
+            }
+            CatalogCommand::ListFunctions { .. } => {
+                return Err(CatalogError::NotSupported("list functions".to_string()));
+            }
+            CatalogCommand::DropFunction {
+                function,
+                if_exists,
+                is_temporary,
+            } => {
+                manager
+                    .deregister_function(&function, if_exists, is_temporary)
+                    .await?;
+                display.bools().to_record_batch(vec![true])?
+            }
+            // 注册udf
+            CatalogCommand::RegisterFunction { udf } => {
+                let udf = manager.get_tracked_function(udf)?;
+                manager.register_function(udf)?;
+                // 返回空
+                display.empty().to_record_batch(vec![])?
+            }
+            CatalogCommand::RegisterTableFunction { name, udtf } => {
+                manager.register_table_function(name, udtf)?;
+                display.empty().to_record_batch(vec![])?
+            }
+            CatalogCommand::DropTemporaryView {
+                view,
+                is_global,
+                options,
+            } => {
+                if is_global {
+                    manager.drop_global_temporary_view(&view, options).await?;
+                } else {
+                    manager.drop_temporary_view(&view, options).await?;
+                }
+                display.bools().to_record_batch(vec![true])?
+            }
+            CatalogCommand::DropView { view, options } => {
+                manager.drop_maybe_temporary_view(&view, options).await?;
+                display.bools().to_record_batch(vec![true])?
+            }
+            CatalogCommand::CreateTemporaryView {
+                view,
+                is_global,
+                options,
+            } => {
+                let input = manager.get_tracked_logical_plan(options.input)?;
+                let options = CreateTemporaryViewOptions {
+                    input,
+                    columns: options.columns,
+                    if_not_exists: options.if_not_exists,
+                    replace: options.replace,
+                    comment: options.comment,
+                    properties: options.properties,
+                };
+                if is_global {
+                    manager.create_global_temporary_view(&view, options).await?;
+                } else {
+                    manager.create_temporary_view(&view, options).await?;
+                }
+                display.bools().to_record_batch(vec![true])?
+            }
+            CatalogCommand::CreateView { view, options } => {
+                manager.create_view(&view, options).await?;
+                display.bools().to_record_batch(vec![true])?
+            }
+        };
+        Ok(batch)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct DescribeTableRow {
+    col_name: String,
+    data_type: String,
+    comment: Option<String>,
+}
