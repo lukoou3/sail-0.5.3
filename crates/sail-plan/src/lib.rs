@@ -38,10 +38,12 @@ pub async fn resolve_and_execute_plan(
 ) -> PlanResult<(Arc<dyn ExecutionPlan>, Vec<StringifiedPlan>)> {
     let mut info = vec![];
     let resolver = PlanResolver::new(ctx, config);
+    // 转为逻辑计划，使用的是datafusion的LogicalPlan.
     let NamedPlan { plan, fields } = resolver.resolve_named_plan(plan).await?;
     info.push(plan.to_stringified(PlanType::InitialLogicalPlan));
     let df = execute_logical_plan(ctx, plan).await?;
     let (session_state, plan) = df.into_parts();
+    // 优化计划
     let plan = session_state.optimize(&plan)?;
     let plan = if is_streaming_plan(&plan)? {
         rewrite_streaming_plan(plan)?
@@ -49,6 +51,7 @@ pub async fn resolve_and_execute_plan(
         plan
     };
     info.push(plan.to_stringified(PlanType::FinalLogicalPlan));
+    // 转为物理计划
     let plan = session_state
         .query_planner()
         .create_physical_plan(&plan, &session_state)

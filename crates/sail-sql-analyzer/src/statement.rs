@@ -27,6 +27,7 @@ use crate::query::from_ast_query;
 use crate::value::from_ast_string;
 
 pub fn from_ast_statement(statement: Statement) -> SqlResult<spec::Plan> {
+    // ast_statement转为plan
     match statement {
         Statement::Query(query) => {
             let plan = from_ast_query(query)?;

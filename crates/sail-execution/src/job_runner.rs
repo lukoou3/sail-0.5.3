@@ -61,6 +61,7 @@ impl JobRunner for LocalJobRunner {
             operator_id: None,
         };
         let plan = trace_execution_plan(plan, options)?;
+        // 本地模式执行物理计划就是直接调用datafusion的execute_stream方法
         Ok(execute_stream(plan, ctx.task_ctx())?)
     }
 
@@ -103,6 +104,7 @@ impl StateObservable<JobRunnerObserver> for ClusterJobRunner {
 
 #[tonic::async_trait]
 impl JobRunner for ClusterJobRunner {
+    /// 在集群上执行计划。精彩的部分就在这里发生。
     /// Executes a plan on the cluster. This is where the cool stuff happens.
     async fn execute(
         &self,
@@ -110,6 +112,7 @@ impl JobRunner for ClusterJobRunner {
         plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
         let (tx, rx) = oneshot::channel();
+        // 发送给DriverActor，类似于spark的driver调度器。https://docs.lakesail.com/sail/latest/concepts/architecture/
         self.driver
             .send(DriverEvent::ExecuteJob {
                 plan,

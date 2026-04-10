@@ -54,6 +54,7 @@ impl Actor for WorkerActor {
             .await;
     }
 
+    /// work处理事件
     fn receive(&mut self, ctx: &mut ActorContext<Self>, message: Self::Message) -> ActorAction {
         match message {
             WorkerEvent::ServerReady { port, signal } => {
@@ -63,6 +64,7 @@ impl Actor for WorkerActor {
             WorkerEvent::ReportKnownPeers { peer_worker_ids } => {
                 self.handle_report_known_peers(ctx, peer_worker_ids)
             }
+            // work运行task
             WorkerEvent::RunTask {
                 key,
                 definition,

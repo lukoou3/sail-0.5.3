@@ -52,6 +52,8 @@ impl TryFrom<Plan> for spec::QueryPlan {
 impl TryFrom<Relation> for spec::Plan {
     type Error = SparkError;
 
+    /// 将relation转换为plan，此处会以某种方式解析SQL文本。
+    /// [RelationNode::try_from]  RelType 转为 RelationNode
     /// Converts a relation to a plan, somehow SQL text is parsed here.
     fn try_from(relation: Relation) -> SparkResult<spec::Plan> {
         let Relation { common, rel_type } = relation;
@@ -126,6 +128,7 @@ impl TryFrom<RelType> for RelationNode {
     type Error = SparkError;
 
     fn try_from(rel_type: RelType) -> SparkResult<RelationNode> {
+        // RelType 转为 RelationNode
         match rel_type {
             RelType::Read(read) => {
                 use sc::read::{DataSource, NamedTable, ReadType};
@@ -433,6 +436,7 @@ impl TryFrom<RelType> for RelationNode {
                 };
                 Ok(RelationNode::Query(node))
             }
+            // 客户端spark.sql调用的就是这个
             RelType::Sql(sql) => {
                 #[expect(deprecated)]
                 let sc::Sql {
@@ -442,6 +446,7 @@ impl TryFrom<RelType> for RelationNode {
                     named_arguments,
                     pos_arguments,
                 } = sql;
+                // 解析sql, ast_statement转为plan
                 match from_ast_statement(parse_one_statement(query.as_str())?)? {
                     spec::Plan::Query(input) => {
                         let positional_arguments =

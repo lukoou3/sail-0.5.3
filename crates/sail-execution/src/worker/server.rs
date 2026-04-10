@@ -30,6 +30,7 @@ impl WorkerService for WorkerServer {
         &self,
         request: Request<RunTaskRequest>,
     ) -> Result<Response<RunTaskResponse>, Status> {
+        // work 收到driver发送的RunTaskRequest
         let request = request.into_inner();
         debug!("{request:?}");
         let RunTaskRequest {
@@ -46,6 +47,7 @@ impl WorkerService for WorkerServer {
             .collect::<ExecutionResult<Vec<_>>>()?;
         let definition = crate::task::gen::TaskDefinition::decode(definition.as_slice())
             .map_err(|e| Status::invalid_argument(format!("invalid task definition: {e}")))?;
+        // 向事件循环发送WorkerEvent::RunTask事件
         let event = WorkerEvent::RunTask {
             key: TaskKey {
                 job_id: job_id.into(),

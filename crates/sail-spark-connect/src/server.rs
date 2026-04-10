@@ -69,6 +69,7 @@ async fn handle_command(
         CommandType::WriteOperationV2(write) => {
             service::handle_execute_write_operation_v2(ctx, write, metadata).await
         }
+        // spark.sql(sql_str)就是传入的这个参数
         CommandType::SqlCommand(sql) => {
             service::handle_execute_sql_command(ctx, sql, metadata).await
         }
@@ -144,9 +145,11 @@ impl SparkConnectService for SparkConnectServer {
         let Plan { op_type: op } = request.plan.required("plan")?;
         let op = op.required("plan op")?;
         let stream = match op {
+            // 这个应该是调用的DataFrame api生成的plan
             plan::OpType::Root(relation) => {
                 service::handle_execute_relation(&ctx, relation, metadata).await?
             }
+            // spark.sql(sql_str)就是传入的这个参数
             plan::OpType::Command(Command {
                 command_type: command,
             }) => {

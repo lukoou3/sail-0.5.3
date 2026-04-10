@@ -56,6 +56,7 @@ impl Actor for DriverActor {
             .await;
     }
 
+    /// DriverActor收到事件请求
     fn receive(&mut self, ctx: &mut ActorContext<Self>, message: DriverEvent) -> ActorAction {
         match message {
             DriverEvent::ServerReady { port, signal } => {

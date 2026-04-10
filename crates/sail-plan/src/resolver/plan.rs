@@ -14,6 +14,7 @@ pub struct NamedPlan {
 }
 
 impl PlanResolver<'_> {
+    /// 转为逻辑计划，使用的是datafusion的LogicalPlan.
     /// Resolves a plan into a named plan.
     pub async fn resolve_named_plan(&self, plan: spec::Plan) -> PlanResult<NamedPlan> {
         let mut state = PlanResolverState::new();

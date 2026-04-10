@@ -119,6 +119,7 @@ pub fn from_ast_named_expression(expr: NamedExpr) -> SqlResult<spec::Expr> {
     }
 }
 
+/// 整个查询
 pub(crate) fn from_ast_query(query: Query) -> SqlResult<spec::QueryPlan> {
     let Query {
         with,
@@ -219,6 +220,7 @@ fn from_ast_query_term(term: QueryTerm) -> SqlResult<spec::QueryPlan> {
     }
 }
 
+/// 最普遍的查询转换为QueryPlan, 解析逻辑基本和spark sql一样
 fn from_ast_query_select(select: QuerySelect) -> SqlResult<spec::QueryPlan> {
     let QuerySelect {
         select:
@@ -237,8 +239,10 @@ fn from_ast_query_select(select: QuerySelect) -> SqlResult<spec::QueryPlan> {
     let tables = from
         .map(|FromClause { from: _, tables }| tables.into_items().collect())
         .unwrap_or_default();
+    // 查询的表
     let plan = from_ast_tables(tables)?;
 
+    // 处理where
     let condition = r#where.map(
         |WhereClause {
              r#where: _,
@@ -251,6 +255,7 @@ fn from_ast_query_select(select: QuerySelect) -> SqlResult<spec::QueryPlan> {
         plan
     };
 
+    // 处理 Lateral View
     let plan = query_plan_with_lateral_views(plan, lateral_views)?;
 
     let projection = projection
@@ -288,12 +293,15 @@ fn from_ast_query_select(select: QuerySelect) -> SqlResult<spec::QueryPlan> {
         )
         .transpose()?;
 
+    // select 投影 或者 聚合
     let plan = if group_by.is_empty() && having.is_none() {
+        // 投影
         spec::QueryPlan::new(spec::QueryNode::Project {
             input: Some(Box::new(plan)),
             expressions: projection,
         })
     } else {
+        // 聚合
         spec::QueryPlan::new(spec::QueryNode::Aggregate(spec::Aggregate {
             input: Box::new(plan),
             grouping: group_by,

@@ -47,6 +47,7 @@ impl TaskRunner {
     ) where
         T::Message: TaskRunnerMessage + StreamAccessorMessage,
     {
+        // work运行任务, 看看rust中是怎么做查询计划的序列化的
         let stream = match self.execute_plan(ctx, &key, definition, context) {
             Ok(x) => x,
             Err(e) => {
@@ -73,6 +74,7 @@ impl TaskRunner {
         }
     }
 
+    /// 反序列化并准备在此节点上执行的物理计划。
     /// Deserializes and prepares a physical plan for execution on this node.
     fn execute_plan<T: Actor>(
         &mut self,
@@ -84,6 +86,7 @@ impl TaskRunner {
     where
         T::Message: TaskRunnerMessage + StreamAccessorMessage,
     {
+        // 这个是 Protocol Buffers message的反序列化，就是datafusion使用的。https://docs.rs/datafusion-proto/latest/datafusion_proto/
         let plan = PhysicalPlanNode::decode(definition.plan.as_ref())?;
         let plan = plan.try_into_physical_plan(&context, self.codec.as_ref())?;
         let plan = self.rewrite_parquet_adapters(plan)?;

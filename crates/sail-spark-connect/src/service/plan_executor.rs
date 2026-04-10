@@ -247,7 +247,9 @@ pub(crate) async fn handle_execute_sql_command(
     let relation = match plan {
         spec::Plan::Query(_) => relation,
         command @ spec::Plan::Command(_) => {
+            // 转为物理计划
             let (plan, _) = resolve_and_execute_plan(ctx, spark.plan_config()?, command).await?;
+            // 执行物理计划
             let stream = service.runner().execute(ctx, plan).await?;
             let schema = stream.schema();
             let data = read_stream(stream).await?;

@@ -170,6 +170,7 @@ impl DriverActor {
         context: Arc<TaskContext>,
         result: oneshot::Sender<ExecutionResult<SendableRecordBatchStream>>,
     ) -> ActorAction {
+        // DriverActor收到事件请求，调度提交任务
         let out = self.job_scheduler.accept_job(ctx, plan, context);
         if let Ok((job_id, _)) = &out {
             self.refresh_job(ctx, *job_id);
@@ -509,6 +510,9 @@ impl DriverActor {
         }
     }
 
+    /// 将待处理任务分配给可用工作进程并调度它们执行。
+    /// 从任务分配器获取任务分配信息，从作业调度器构建任务定义，并通过 gRPC 将每个任务调度给驱动程序或远程工作进程。无法构建任务定义的任务将被报告为失败。
+    ///
     /// Assigns pending tasks to available workers and dispatches them for execution.
     ///
     /// Gets task assignments from the task assigner, builds task definitions from the job
