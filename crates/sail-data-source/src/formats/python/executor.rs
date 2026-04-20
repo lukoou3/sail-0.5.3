@@ -53,6 +53,8 @@ pub struct PartitionPlan {
     pub partitions: Vec<InputPartition>,
 }
 
+/// python中可以使用arrow读取和写入非常强大
+/// pysail/tests/spark/test_python_datasource.py:939
 /// Result of writer setup, containing the pickled writer and its type.
 ///
 /// The writer is pickled after calling `datasource.writer(schema, overwrite)`.
@@ -504,6 +506,7 @@ impl PythonExecutor for InProcessExecutor {
         let slow_write_warn_ms = self.slow_write_warn_ms;
 
         let result = tokio::task::spawn_blocking(move || {
+            // 执行python写入
             pyo3::Python::attach(|py| {
                 // Deserialize the writer
                 let writer = deserialize_object(py, &pickled_writer)?;

@@ -174,6 +174,7 @@ impl ExecutionPlan for PythonDataSourceWriteExec {
                 Ok(batch)
             });
 
+            // 调用python写入
             match executor
                 .execute_write(&pickled_writer, input_schema, is_arrow, Box::pin(stream))
                 .await
